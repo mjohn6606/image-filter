@@ -3,20 +3,107 @@ Copyright 2018 Marc Johnson. All rights reserved.
 */
 
 ////////////////////////////////////////////////////////////////////////////////
-// Function and variable declarations
+// Initialization code
 ////////////////////////////////////////////////////////////////////////////////
 
 var canvas;
 var canvas2d;
 var texture;
+var selectedItem;
+var selectedFilter;
 
 function loadImage(src) {
     var image = new Image();
     image.onload = function() {
+        if (selectedItem) contractItem(selectedItem);
+        if (selectedFilter) setSelectedFilter(null);
+        selectedItem = null;
+        hideDialog();
         init(image);
     };
     image.src = src;
-    image.src = src;
+}
+
+function showDialog() {
+    $('#fade').fadeIn();
+    $('#dialog').show().css({
+        top: -$('#dialog').outerHeight()
+    }).animate({
+        top: 0
+    });
+}
+
+function hideDialog() {
+    $('#fade').fadeOut();
+    $('#dialog').animate({
+        top: -$('#dialog').outerHeight()
+    }, function() {
+        $('#dialog').hide();
+    });
+}
+
+function contractItem(item) {
+    $(item).removeClass('active').animate({ paddingTop: 0 });
+    $(item).children('.contents').slideUp();
+}
+
+function expandItem(item) {
+    $(item).addClass('active').animate({ paddingTop: 10 });
+    $(item).children('.contents').slideDown();
+}
+
+function setSelectedFilter(filter) {
+    canvas2d.getContext('2d').clearRect(0, 0, canvas2d.width, canvas2d.height);
+
+    // Set the new filter
+    $('#nubs').html('');
+    selectedFilter = filter;
+
+    // Update UI elements and draw filter
+    if (filter) {
+        // Reset all sliders
+        for (var i = 0; i < filter.sliders.length; i++) {
+            var slider = filter.sliders[i];
+            $('#' + slider.id).slider('value', slider.value);
+        }
+
+        // Reset all curves
+        for (var i = 0; i < filter.curves.length; i++) {
+            var curves = filter.curves[i];
+            filter[curves.name] = [[0, 0], [1, 1]];
+            curves.draw();
+        }
+
+        // Reset all segmented controls
+        for (var i = 0; i < filter.segmented.length; i++) {
+            var segmented = filter.segmented[i];
+            $('#' + segmented.id + '-' + segmented.initial).mousedown();
+        }
+
+        // Generate all nubs
+        for (var i = 0; i < filter.nubs.length; i++) {
+            var nub = filter.nubs[i];
+            var x = nub.x * canvas.width;
+            var y = nub.y * canvas.height;
+            $('<div class="nub" id="nub' + i + '"></div>').appendTo('#nubs');
+            var ondrag = (function(nub) { return function(event, ui) {
+                var offset = $(event.target.parentNode).offset();
+                filter[nub.name] = { x: ui.offset.left - offset.left, y: ui.offset.top - offset.top };
+                filter.update();
+            }; })(nub);
+            $('#nub' + i).draggable({
+                drag: ondrag,
+                containment: 'parent',
+                scroll: false
+            }).css({ left: x, top: y });
+            filter[nub.name] = { x: x, y: y };
+        }
+
+        if (filter.reset) filter.reset();
+        filter.update();
+    } else {
+        canvas.draw(texture).update();
+    }
 }
 
 function init(image) {
@@ -39,10 +126,6 @@ function init(image) {
     selectedItem = null;
     $('#loading').hide();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Application Program
-////////////////////////////////////////////////////////////////////////////////
 
 $(window).load(function() {
     // Try to get a WebGL canvas
